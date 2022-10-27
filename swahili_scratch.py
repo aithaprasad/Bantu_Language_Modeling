@@ -5,8 +5,6 @@ Created on Mon Oct 24 12:11:19 2022
 @author: omars
 """
 
-import pickle
-import numpy as np
 import pandas as pd
 from math import log2
 
@@ -21,6 +19,8 @@ def load_dataset(file_name):
     return ncorpus
 
 def get_char_prob(corpus,smoothing_factor):
+    # get uni grams probabilities
+    #count number of times each char occured and divide by total number of chars
     count_dict = {}
     for sentence in corpus:
         for char in sentence:
@@ -37,10 +37,13 @@ def get_char_prob(corpus,smoothing_factor):
 
     for key in count_dict.keys():
         prob_dict[key] = count_dict[key] /char_num
+    
+    print("unigrams done")
 
     return count_dict, prob_dict
 
 def create_sequences(corpus, history):
+    #create different history sequences
     tokens = corpus.split()
     corpus = ' '.join(tokens)
     sequences = list()
@@ -51,7 +54,8 @@ def create_sequences(corpus, history):
     return sequences
 
 def get_bigram_prob(count_dict, corpus, smoothing_factor):
-    smoothing_factor = 1
+    # get bigrams probability
+    # get count of each bi gram and divide by total number of bi grams for each preceding gram
     bigram_dict = {}
     for key in count_dict.keys():
         bigram_dict[key] = {}
@@ -65,10 +69,14 @@ def get_bigram_prob(count_dict, corpus, smoothing_factor):
         count = sum(bigram_dict[key].values())
         for key1 in bigram_dict[key].keys():
             bigram_dict[key][key1] /= count
+            
+    print("bigrams done")
 
     return bigram_dict
 
 def get_trigram_prob(bigram_dict, count_dict, corpus, smoothing_factor):
+    # get tri grams probability
+    # get count of each tri gram and divide by total number of tri grams for each preceding gram
     trigram_dict = {}
     for key in count_dict.keys():
         trigram_dict[key] = {}
@@ -89,9 +97,13 @@ def get_trigram_prob(bigram_dict, count_dict, corpus, smoothing_factor):
                 except:
                     trigram_dict[key][key1][key2] = 0 
                     
+    print("trigrams done")
+                    
     return trigram_dict
 
 def get_quadgram_prob(count_dict, corpus, smoothing_factor):
+    # get quad grams probability
+    # get count of each quad gram and divide by total number of quad grams for each preceding gram
     quadgram_dict = {}
     for key in count_dict.keys():
         quadgram_dict[key] = {}
@@ -113,11 +125,15 @@ def get_quadgram_prob(count_dict, corpus, smoothing_factor):
                     try:
                         quadgram_dict[key][key1][key2][key3] /= count
                     except:
-                        quadgram_dict[key][key1][key2][key3] = 0                    
+                        quadgram_dict[key][key1][key2][key3] = 0   
+                        
+    print("quadgrams done")
 
     return quadgram_dict
 
 def get_pentagram_prob(count_dict, corpus, smoothing_factor):
+    # get pentagrams probability
+    # get count of each penta gram and divide by total number of penta grams for each preceding gram
     pentagram_dict = {}
     for key in count_dict.keys():
         pentagram_dict[key] = {}
@@ -144,9 +160,13 @@ def get_pentagram_prob(count_dict, corpus, smoothing_factor):
                         except:
                             pentagram_dict[key][key1][key2][key3][key4] = 0 
                             
+    print("pentagrams done")
+    
     return pentagram_dict
 
 def smooth_grams(penta_grams,quad_grams,tri_grams,bi_grams,uni_grams,vocab):
+    # use interpolation to smooth probabilities
+    # Lambdas where chosen using trial and error
     L1 = 0.035
     L2 = 0.09
     L3 = 0.125
@@ -163,29 +183,38 @@ def smooth_grams(penta_grams,quad_grams,tri_grams,bi_grams,uni_grams,vocab):
                     smoothed[key][key1][key2][key3] = {}
                     for key4 in vocab:
                         smoothed[key][key1][key2][key3][key4] = (L1 * uni_grams[key4]) + (L2 * bi_grams[key3][key4]) + (L3 * tri_grams[key2][key3][key4]) + (L4 * quad_grams[key1][key2][key3][key4]) + (L5 * penta_grams[key][key1][key2][key3][key4])
-                        
+                      
+    print("smoothing done")
     return smoothed
 
-def evaluate(sentence, label, penta_dict):
-    prob = 1
-    for i in range(4,len(sentence)-4):        
-        # if i == 0:
-        #     prob = uni_dict[sentence[i]]
-        # elif i == 1:
-        #     prob *= bi_dict[sentence[i]][sentence[i+1]]
-        # elif i == 2:
-        #     prob *= tri_dict[sentence[i]][sentence[i+1]][sentence[i+2]]
-        # elif i == 3:
-        #     prob *= quad_dict[sentence[i]][sentence[i+1]][sentence[i+2]][sentence[i+3]]
-        # else:
-        prob *= penta_dict[sentence[i]][sentence[i+1]][sentence[i+2]][sentence[i+3]][sentence[i+4]]
-        
-    prob *= penta_dict[sentence[i+1]][sentence[i+2]][sentence[i+3]][sentence[i+4]][label]
+def evaluate_one(lang,penta_dict):
+  testfile = open(lang+'-test.txt', 'r')
+  max_history = 4
+  history = []
+  loss_from_scratch = 0
+  count = 0
+  while True:
+    c = testfile.read(1)
+    if c == '\n':
+        c = " "
+    if not c:
+      break
+    if len(history) == max_history:
+        count += 1
+        loss_from_scratch -= log2(from_scratch(history, c, penta_dict))
+    if len(history) == max_history:
+      history.pop(0)
+    history.append(c)
+  return [loss_from_scratch/count]
+
+def from_scratch(history, c,penta_dict):
+    prob = penta_dict[history[0]][history[1]][history[2]][history[3]][c]
         
     return prob
             
 if __name__ == "__main__":
-    name = 'sw-train.txt'
+    lang = 'sw'
+    name = f'{lang}-train.txt'
     corpus = load_dataset(name)
     
     smoothing_factor = 0.1# add k-smoothing.
@@ -199,22 +228,20 @@ if __name__ == "__main__":
     pentagram_probs = get_pentagram_prob(count_dict, corpus, smoothing_factor)
     df = pd.DataFrame(data=bigram_probs) # visualization purposes
     
-    history = 20
-    chars_seq = create_sequences(corpus, history)
-    chars_seq = np.array(chars_seq)
+    # used these for tuning parameters
+    # history = 20
+    # chars_seq = create_sequences(corpus, history)
+    # chars_seq = np.array(chars_seq)
     
-    X = []
-    y = []
+    # X = []
+    # y = []
 
-    for i in range(len(chars_seq)):
-        X.append(chars_seq[i][:-1])
-        y.append(chars_seq[i][-1])
+    # for i in range(len(chars_seq)):
+    #     X.append(chars_seq[i][:-1])
+    #     y.append(chars_seq[i][-1])
     
     smoothed_probs = smooth_grams(pentagram_probs,quadgram_probs,trigram_probs,bigram_probs,prob_dict,vocab)
     
-    loss = 0
+    cross_entropy = evaluate_one(lang,smoothed_probs)
     
-    for i in range(len(X)):
-        loss -= log2(evaluate(X[i], y[i], smoothed_probs))
-        
-    cross_entropy = loss / len(X)
+    #cross entropy using swahili corpus: 2.310530273054079

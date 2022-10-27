@@ -164,7 +164,7 @@ def evaluate(sentence, label, penta_dict, quad_dict, tri_dict,bi_dict, uni_dict)
     return prob
             
 if __name__ == "__main__":
-    name = 'sw-train.txt'
+    name = 'cwe-train.txt'
     corpus = load_dataset(name)
     
     smoothing_factor = 0.1
